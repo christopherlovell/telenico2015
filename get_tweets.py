@@ -28,19 +28,17 @@ db = client.mydb
 tweets = db.tweets
 users = db.users
 
+# twitter accounts
+list_members = api.list_members('tweetminster','ukmps',-1)
 
-# get list of MP twitter accounts
-mp_accounts = api.list_members('tweetminster','ukmps')
-
-for mp in mp_accounts:
-    users.insert(json.loads((json.dumps(mp._json))))
-
-
-
+for user in tweepy.Cursor(api.list_members,'tweetminster','ukmps').items():
+    users.insert(json.loads((json.dumps(user._json))))
 
 #lists = api.list_members(list_id='tweetminster')
 
-user='david_cameron'
+for user in users.find(fields={'_id': False,'screen_name': True}):
+    print(user)
+    
 
 # main  
 statuses = api.GetUserTimeline(screen_name=user)
@@ -65,4 +63,3 @@ for tweet in statuses:
     data['text'] = tweet.text
     # Insert process
     tweets.insert(data)
-

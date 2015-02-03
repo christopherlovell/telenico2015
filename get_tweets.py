@@ -36,30 +36,30 @@ for user in tweepy.Cursor(api.list_members,'tweetminster','ukmps').items():
 
 #lists = api.list_members(list_id='tweetminster')
 
-for user in users.find(fields={'_id': False,'screen_name': True}):
-    print(user)
+for user in users.find():
+    #print(user['id'])
+    tweets.find({'source_user_id': user['id']})    
     
+    api.user_timeline(screen_name=user['screen_name'],count=1)
+    
+    for tweet in status:
+        # Empty dictionary for storing tweet related data
+        data ={}
+        data['created_at'] = tweet.created_at
+        data['favorite_count'] = tweet.favorite_count
+        data['favorited'] = tweet.favorited
+        data['id'] = tweet.id
+        data['lang'] = tweet.lang
+        data['media'] = tweet.media
+        data['retweet_count'] = tweet.retweet_count
+        data['retweeted'] = tweet.retweeted
+        data['truncated'] = tweet.truncated
+        #data['user'] = tweet.user
+        #data['user_mentions'] = tweet.user_mentions
+        data['geo'] = tweet.geo
+        data['id'] = tweet.id
+        data['source'] = tweet.source
+        data['text'] = tweet.text
+        # Insert process
+        tweets.insert(data)
 
-# main  
-statuses = api.GetUserTimeline(screen_name=user)
-
-for tweet in statuses:
-    # Empty dictionary for storing tweet related data
-    data ={}
-    data['created_at'] = tweet.created_at
-    data['favorite_count'] = tweet.favorite_count
-    data['favorited'] = tweet.favorited
-    data['id'] = tweet.id
-    data['lang'] = tweet.lang
-    data['media'] = tweet.media
-    data['retweet_count'] = tweet.retweet_count
-    data['retweeted'] = tweet.retweeted
-    data['truncated'] = tweet.truncated
-    #data['user'] = tweet.user
-    #data['user_mentions'] = tweet.user_mentions
-    data['geo'] = tweet.geo
-    data['id'] = tweet.id
-    data['source'] = tweet.source
-    data['text'] = tweet.text
-    # Insert process
-    tweets.insert(data)

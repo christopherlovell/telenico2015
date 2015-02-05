@@ -10,13 +10,12 @@ import tweepy
 import pymongo
 
 # twitter set up
-consumer_key='ZjOUEznKy9VYvf6uHN4JOoMUt'
-consumer_secret='7nYvQRxXBQJaoxcnFvFeHuJ4iOiKXPkJyH91nXuPsWo5VLWoq2'
-access_token='547776192-2SpNldcIS3u2m75qfCItavkuOpKB5N8BDlRkcsyK'
-access_token_secret='LkQbZzQFrBoeXpA3jB1E3fK4ch0sRCVvhHDx3sFXLN0Ej'
+file_directory='C:\\Users\\Chris\\Desktop\\twitter_keys.json'
+json_data=open(file_directory).read()
+data = json.load(json_data)
 
-auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
-auth.set_access_token(access_token, access_token_secret)
+auth = tweepy.OAuthHandler(data["consumer_key"],data["consumer_secret"])
+auth.set_access_token(data["access_token"],data["access_token_secret"])
 
 api = tweepy.API(auth)
 

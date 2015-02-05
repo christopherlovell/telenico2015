@@ -35,30 +35,50 @@ for user in tweepy.Cursor(api.list_members,'tweetminster','ukmps').items():
 
 #lists = api.list_members(list_id='tweetminster')
 
+
+####
+#### Initial Download
+####
+
+# list to keep track of users whose tweets have been downloaded
+downloaded_users = []
+
+for user in users.find({"screen_name": { "$nin": downloaded_users }}):
+    print user["screen_name"]
+    status = api.user_timeline(screen_name=user['screen_name'],count=30)
+    for tweet in status:
+        if len(list(tweets.find({"id": tweet.id})))<1:
+            store_tweet(tweet,tweets)
+    downloaded_users.append(user["screen_name"])
+
+
+####
+#### Production Download
+####
+
 for user in users.find():
     #print(user['id'])
-    tweets.find({'source_user_id': user['id']})    
+    tweets.find({'source_user_id': user['id']}).sort({'':1}) 
     
     api.user_timeline(screen_name=user['screen_name'],count=1)
     
-    for tweet in status:
-        # Empty dictionary for storing tweet related data
-        data ={}
-        data['created_at'] = tweet.created_at
-        data['favorite_count'] = tweet.favorite_count
-        data['favorited'] = tweet.favorited
-        data['id'] = tweet.id
-        data['lang'] = tweet.lang
-        data['media'] = tweet.media
-        data['retweet_count'] = tweet.retweet_count
-        data['retweeted'] = tweet.retweeted
-        data['truncated'] = tweet.truncated
-        #data['user'] = tweet.user
-        #data['user_mentions'] = tweet.user_mentions
-        data['geo'] = tweet.geo
-        data['id'] = tweet.id
-        data['source'] = tweet.source
-        data['text'] = tweet.text
-        # Insert process
-        tweets.insert(data)
+def store_tweet(tweet,collection):
+    # Empty dictionary for storing tweet related data
+    data ={}
+    data['created_at'] = tweet.created_at
+    data['favorite_count'] = tweet.favorite_count
+    data['favorited'] = tweet.favorited
+    data['id'] = tweet.id
+    data['lang'] = tweet.lang
+    data['retweet_count'] = tweet.retweet_count
+    data['retweeted'] = tweet.retweeted
+    data['truncated'] = tweet.truncated
+    #data['user'] = tweet.user
+    #data['user_mentions'] = tweet.user_mentions
+    data['geo'] = tweet.geo
+    data['id'] = tweet.id
+    data['source'] = tweet.source
+    data['text'] = tweet.text
+    # Insert process
+    collection.insert(data)
 

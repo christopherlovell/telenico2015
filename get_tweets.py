@@ -12,7 +12,7 @@ import pymongo
 # twitter set up
 file_directory='C:\\Users\\Chris\\Desktop\\twitter_keys.json'
 json_data=open(file_directory).read()
-data = json.load(json_data)
+data = json.loads(json_data)
 
 auth = tweepy.OAuthHandler(data["consumer_key"],data["consumer_secret"])
 auth.set_access_token(data["access_token"],data["access_token_secret"])
@@ -62,6 +62,9 @@ for user in users.find():
     
     api.user_timeline(screen_name=user['screen_name'],count=1)
     
+
+
+
 def store_tweet(tweet,collection):
     # Empty dictionary for storing tweet related data
     data ={}

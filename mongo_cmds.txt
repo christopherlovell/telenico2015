@@ -1,0 +1,1 @@
+db.tweets.find({"created_at": {"$gte": new Date("2015-02-07T18:15:00.000Z")}})

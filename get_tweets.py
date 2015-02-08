@@ -46,16 +46,14 @@ for user in tweepy.Cursor(api.list_members,'tweetminster','ukmps').items():
 #        print "tweet: " + tweet.author.screen_name
 #    
 
-def store_tweets(tweets,collection):    
+def store_tweets(tweets,collection):
     for tweet in tweets:
         collection.insert(tweet._json)
 
-
-for tweet in status:
-    print(tweet.created_at)
-    print(tweet.id)
-    print(tweet.user.screen_name)
-
+#for tweet in status:
+#    print(tweet.created_at)
+#    print(tweet.id)
+#    print(tweet.user.screen_name)
 
 # list to keep track of users whose tweets have been downloaded
 downloaded_users = []
@@ -64,7 +62,22 @@ for user in users.find({"screen_name": { "$nin": downloaded_users }}):
     print user["screen_name"]
     initial = tweets.find({"user.screen_name": user['screen_name'] }).sort([['_id',pymongo.ASCENDING]]).limit(1)
     if(initial.count()>0):
-        status = api.user_timeline(screen_name=initial[0]['user']['screen_name'],since_id=initial[0]['_id'])#retry_count=10,retry_delay=100,)
+        print "update tweets"
+        try:
+            status = api.user_timeline(screen_name=initial[0]['user']['screen_name'],since_id=initial[0]['id'])#retry_count=10,retry_delay=100,)
+        except tweepy.TweepError, e:
+            if e.message == 'Not authorized.':
+                print "Error: tweets protected"
+                continue
+            if e.message[0]['code'] == 34:
+                print "Error: user not found"
+                continue
+            elif e.message[0]['code'] == 88:
+                print "Error: exceeded limit"
+                break
+            else:
+                print e
+                continue        
     else:
         print "no tweets"
         try:
@@ -78,12 +91,12 @@ for user in users.find({"screen_name": { "$nin": downloaded_users }}):
                 continue
             elif e.message[0]['code'] == 88:
                 print "Error: exceeded limit"
-                continue
+                break
             else:
                 print e
                 continue
-        store_tweets(status,tweets)
-        downloaded_users.append(user["screen_name"])
+    store_tweets(status,tweets)
+    downloaded_users.append(user["screen_name"])
 
 
 len(users.find().distinct("screen_name"))

@@ -24,11 +24,6 @@ api = tweepy.API(auth)
 
 # mongo set up
 from pymongo import MongoClient
-client = MongoClient()
-
-db = client.mydb
-tweets = db.tweets
-users = db.users
 
 # twitter accounts
 #list_members = api.list_members('tweetminster','ukmps',-1)
@@ -65,15 +60,17 @@ users = db.users
 
 
 
-len(users.find().distinct("screen_name"))
-len(tweets.find().distinct("user.screen_name"))
+#len(users.find().distinct("screen_name"))
+#len(tweets.find().distinct("user.screen_name"))
 
 
 def store_tweets(tweets,collection):
     for tweet in tweets:
         collection.insert(tweet._json)
 
-
+#def pymongo_error_handler (error,user,collection):
+        
+    
 def tweepy_error_handler(error,user,collection):
     if error.message == 'Not authorized.':
         print "Error: tweets protected. "+ str(datetime.datetime.now().time())
@@ -97,8 +94,16 @@ def tweepy_error_handler(error,user,collection):
 
 downloaded_users = []
 while True:
+    # refresh mongo connection details after each run through to prevent time out
+    client = MongoClient()
+    db = client.mydb
+    tweets = db.tweets
+    users = db.users
+
     #for user in users.find({"screen_name": { "$nin": downloaded_users }}):
-    for user in users.find({"access_status": { "$nin": ["protected","not_found"]}}):
+    users_mongo = users.find({"access_status": { "$nin": ["protected","not_found"]}})
+
+    for user in users_mongo:
         print user["screen_name"] + " " + str(datetime.datetime.now().time())
         status=[]
         last_tweet = []
@@ -144,4 +149,4 @@ while True:
         if(status):
             store_tweets(status,tweets)
         downloaded_users.append(user["screen_name"])    
-                
+    continue

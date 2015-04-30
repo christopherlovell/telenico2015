@@ -1,1 +1,9 @@
 db.tweets.find({"created_at": {"$gte": new Date("2015-02-07T18:15:00.000Z")}})
+
+
+http://stackoverflow.com/questions/2900674/how-do-i-convert-a-property-in-mongodb-from-text-to-date-type
+var cursor = db.tweets.find()
+while (cursor.hasNext()) {
+	var doc = cursor.next();
+	db.tweets.update({_id : doc._id}, {$set : {created_at : new Date(doc.created_at)}})
+}

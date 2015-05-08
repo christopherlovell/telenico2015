@@ -2,6 +2,572 @@
 title: "Tweet Analysis"
 author: "Christopher Lovell"
 date: "Thursday, April 23, 2015"
-output: html_document
+output: pdf_document
 ---
 
+```{r echo=FALSE,warning=FALSE,message=FALSE}
+library(tm)
+library(Narrative)
+library(RWeka)
+library(rjson)
+library(data.table)
+library(dplyr)
+
+library(zoo)
+library(ggplot2)
+
+wd<-"C:/Users/Chris/Documents/Data Science Files/telenico2015/"
+setwd(wd)
+
+load(file = "matched_materials_small.RData")
+```
+
+How have the election candidates handled their twitter campaigns during the campaign period? To answer this question I have downloaded all tweets from each political candidate with a twitter account. Using this data we can look for patterns in occurences of different terms used by candidates from across the political spectrum, and their differing reactions to key events.
+
+Data on candidates is from [yournextmp.com](https://yournextmp.com/help/api/), a comprehensive and transparent source of candidate data for the 2015 election. 
+
+So far I only have tweets up to the 24th of April, however I am currently getting new tweets up to the present day (current as of 6th May 2015).
+
+Before we delve in to the tweets themselves, let's look at some aggregate data across the time period. Below is a plot of the number of tweets over time for each of the main political parties. You can see a huge spike on the 3rd of April, due to the 7 way televised leaders debate, and a surge in twitter activity from Labour towards the end of April.
+
+```{r number_of_tweets,echo=FALSE,warning=FALSE,message=FALSE}
+timeframe<-"daily"
+normalise=F
+
+party<-"Labour Party"
+logic.labour<-as.logical(tweet.data.df$party==party)
+logic.labour[is.na(logic.labour)]<-F
+tweet.number<-!logical(length=length(corp.clean[logic.labour]))
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.labour]$created_at,tweet.number)
+xts.search.aggregate.labour<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.labour)<-party
+
+party<-"UK Independence Party (UKIP)"
+logic.ukip<-as.logical(tweet.data.df$party==c("UK Independence Party (UK I P)","UK Independence Party (UKIP)"))
+logic.ukip[is.na(logic.ukip)]<-F
+
+tweet.number<-!logical(length=length(corp.clean[logic.ukip]))
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.ukip]$created_at,tweet.number)
+xts.search.aggregate.ukip<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.ukip)<-party
+
+party<-"Conservative Party"
+logic.conservative<-as.logical(tweet.data.df$party==party)
+logic.conservative[is.na(logic.conservative)]<-F
+
+tweet.number<-!logical(length=length(corp.clean[logic.conservative]))
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.conservative]$created_at,tweet.number)
+xts.search.aggregate.conservative<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.conservative)<-party
+
+party<-"Liberal Democrats"
+logic.liberals<-as.logical(tweet.data.df$party==party)
+logic.liberals[is.na(logic.liberals)]<-F
+tweet.number<-!logical(length=length(corp.clean[logic.liberals]))
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.liberals]$created_at,tweet.number)
+xts.search.aggregate.liberals<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.liberals)<-party
+
+party<-"Green Party"
+logic.green<-as.logical(tweet.data.df$party==party)
+logic.green[is.na(logic.green)]<-F
+tweet.number<-!logical(length=length(corp.clean[logic.green]))
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.green]$created_at,tweet.number)
+xts.search.aggregate.green<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.green)<-party
+
+party<-"Scottish National Party (SNP)"
+logic.snp<-as.logical(tweet.data.df$party==party)
+logic.snp[is.na(logic.snp)]<-F
+tweet.number<-!logical(length=length(corp.clean[logic.snp]))
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.snp]$created_at,tweet.number)
+xts.search.aggregate.snp<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.snp)<-party
+
+sent.zoo<-zoo::as.zoo(cbind(xts.search.aggregate.labour,
+                            xts.search.aggregate.conservative,
+                            xts.search.aggregate.liberals,
+                            xts.search.aggregate.ukip,
+                            xts.search.aggregate.green,
+                            xts.search.aggregate.snp
+                            ))
+
+if(normalise){ylabel<-"Normalised Count"}else{ylabel<-"Absolute Count"}
+
+p<-ggplot2::autoplot(na.approx(sent.zoo),facet=NULL)
+p<-p+geom_vline(xintercept = as.numeric(as.POSIXct("2015-03-30")),linetype=4)
+p<-p+xlab("Year")+ylab(ylabel)+theme_bw()+ggtitle("Tweet Count")
+p
+
+rm(xts.search.aggregate.labour,logic.labour,
+   xts.search.aggregate.conservative,logic.conservative,
+   xts.search.aggregate.green,logic.green,
+   xts.search.aggregate.liberals,logic.liberals,
+   xts.search.aggregate.ukip,logic.ukip,
+   xts.search.aggregate.snp,logic.snp,
+   search.result,xts.search,terms,normalise,p,party,sent.zoo)
+invisible(gc(verbose = F))
+```
+
+We will keep in mind the small number of tweets before the dissolution of parliament when looking at patterns during this period in later analysis, especially when analysing normalised results.
+
+Let's take a look at a huge issue during this election: *Scotland*.
+
+```{r echo=FALSE,warning=FALSE,message=FALSE}
+terms<-c("scotland")
+normalise<-F
+timeframe<-"daily"
+search.result<-as.matrix(t(tdm[terms,]))
+
+party<-"Labour Party"
+logic.labour<-as.logical(tweet.data.df$party==party)
+logic.labour[is.na(logic.labour)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.labour]$created_at,search.result[logic.labour])
+xts.search.aggregate.labour<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.labour)<-party
+
+party<-"UK Independence Party (UKIP)"
+logic.ukip<-as.logical(tweet.data.df$party==c("UK Independence Party (UK I P)","UK Independence Party (UKIP)"))
+logic.ukip[is.na(logic.ukip)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.ukip]$created_at,search.result[logic.ukip])
+xts.search.aggregate.ukip<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.ukip)<-party
+
+party<-"Conservative Party"
+logic.conservative<-as.logical(tweet.data.df$party==party)
+logic.conservative[is.na(logic.conservative)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.conservative]$created_at,search.result[logic.conservative])
+xts.search.aggregate.conservative<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.conservative)<-party
+
+party<-"Liberal Democrats"
+logic.liberals<-as.logical(tweet.data.df$party==party)
+logic.liberals[is.na(logic.liberals)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.liberals]$created_at,search.result[logic.liberals])
+xts.search.aggregate.liberals<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.liberals)<-party
+
+party<-"Green Party"
+logic.green<-as.logical(tweet.data.df$party==party)
+logic.green[is.na(logic.green)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.green]$created_at,search.result[logic.green])
+xts.search.aggregate.green<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.green)<-party
+
+party<-"Scottish National Party (SNP)"
+logic.snp<-as.logical(tweet.data.df$party==party)
+logic.snp[is.na(logic.snp)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.snp]$created_at,search.result[logic.snp])
+xts.search.aggregate.snp<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.snp)<-party
+
+sent.zoo<-zoo::as.zoo(cbind(xts.search.aggregate.labour,
+                            xts.search.aggregate.conservative,
+                            xts.search.aggregate.liberals,
+                            xts.search.aggregate.ukip,
+                            xts.search.aggregate.green,
+                            xts.search.aggregate.snp
+                            ))
+
+if(normalise){ylabel<-"Normalised Count"}else{ylabel<-"Absolute Count"}
+
+p<-ggplot2::autoplot(na.approx(sent.zoo),facet=NULL)
+p<-p+geom_vline(xintercept = as.numeric(as.POSIXct("2015-03-30")),linetype=4)
+p<-p+xlab("Year")+ylab(ylabel)+theme_bw()+ggtitle(paste("Search: ",terms,sep=""))
+p
+
+rm(xts.search.aggregate.labour,logic.labour,
+   xts.search.aggregate.conservative,logic.conservative,
+   xts.search.aggregate.green,logic.green,
+   xts.search.aggregate.liberals,logic.liberals,
+   xts.search.aggregate.ukip,logic.ukip,
+   xts.search.aggregate.snp,logic.snp,
+   search.result,xts.search,terms,normalise,p,party,sent.zoo)
+invisible(gc(verbose = F))
+```
+
+The plot above shows the absolute number of occurences of the word *scotland* over each day, split by each party. As expected there are a large number of hits for the SNP, but also for Labour, The Conservatives and the Lib Dems, presumably sharing stark warnings about the SNP's aims for independence. 
+
+However, this picture can be slightly skewed, since there are more candidates for the three major parties than for the SNP, since they are only campaigning in scottish constituencies. To account for this we can divide each daily score for each party by the number of tweets during that day, by that party. These normalised scores are shown below.
+
+```{r echo=FALSE,warning=FALSE,message=FALSE}
+terms<-c("scotland")
+normalise<-T
+timeframe<-"daily"
+search.result<-as.matrix(t(tdm[terms,]))
+
+party<-"Labour Party"
+logic.labour<-as.logical(tweet.data.df$party==party)
+logic.labour[is.na(logic.labour)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.labour]$created_at,search.result[logic.labour])
+xts.search.aggregate.labour<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.labour)<-party
+
+party<-"UK Independence Party (UKIP)"
+logic.ukip<-as.logical(tweet.data.df$party==c("UK Independence Party (UK I P)","UK Independence Party (UKIP)"))
+logic.ukip[is.na(logic.ukip)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.ukip]$created_at,search.result[logic.ukip])
+xts.search.aggregate.ukip<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.ukip)<-party
+
+party<-"Conservative Party"
+logic.conservative<-as.logical(tweet.data.df$party==party)
+logic.conservative[is.na(logic.conservative)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.conservative]$created_at,search.result[logic.conservative])
+xts.search.aggregate.conservative<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.conservative)<-party
+
+party<-"Liberal Democrats"
+logic.liberals<-as.logical(tweet.data.df$party==party)
+logic.liberals[is.na(logic.liberals)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.liberals]$created_at,search.result[logic.liberals])
+xts.search.aggregate.liberals<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.liberals)<-party
+
+party<-"Green Party"
+logic.green<-as.logical(tweet.data.df$party==party)
+logic.green[is.na(logic.green)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.green]$created_at,search.result[logic.green])
+xts.search.aggregate.green<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.green)<-party
+
+party<-"Scottish National Party (SNP)"
+logic.snp<-as.logical(tweet.data.df$party==party)
+logic.snp[is.na(logic.snp)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.snp]$created_at,search.result[logic.snp])
+xts.search.aggregate.snp<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.snp)<-party
+
+sent.zoo<-zoo::as.zoo(cbind(xts.search.aggregate.labour,
+                            xts.search.aggregate.conservative,
+                            xts.search.aggregate.liberals,
+                            xts.search.aggregate.ukip,
+                            xts.search.aggregate.green,
+                            xts.search.aggregate.snp
+                            ))
+
+if(normalise){ylabel<-"Normalised Count"}else{ylabel<-"Absolute Count"}
+
+p<-ggplot2::autoplot(na.approx(sent.zoo),facet=NULL)
+p<-p+geom_vline(xintercept = as.numeric(as.POSIXct("2015-03-30")),linetype=4)
+p<-p+xlab("Year")+ylab(ylabel)+theme_bw()+ggtitle(paste("Search: ",terms,sep=""))
+p
+
+rm(xts.search.aggregate.labour,logic.labour,
+   xts.search.aggregate.conservative,logic.conservative,
+   xts.search.aggregate.green,logic.green,
+   xts.search.aggregate.liberals,logic.liberals,
+   xts.search.aggregate.ukip,logic.ukip,
+   xts.search.aggregate.snp,logic.snp,
+   search.result,xts.search,terms,normalise,p,party,sent.zoo)
+invisible(gc(verbose = F))
+```
+
+We can now clearly see that the SNP mentions scotland far more than the rest of the UK relative to it's number of candidates. Not really that surprising, given that they probably mention the name of their party quite often too.
+
+How about another key issue during the campaign - *immigration*? The plot below shows the absolute counts for this term.
+
+```{r echo=FALSE,warning=FALSE,message=FALSE}
+terms<-c("immigration")
+normalise<-F
+timeframe<-"daily"
+search.result<-as.matrix(t(tdm[terms,]))
+
+party<-"Labour Party"
+logic.labour<-as.logical(tweet.data.df$party==party)
+logic.labour[is.na(logic.labour)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.labour]$created_at,search.result[logic.labour])
+xts.search.aggregate.labour<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.labour)<-party
+
+party<-"UK Independence Party (UKIP)"
+logic.ukip<-as.logical(tweet.data.df$party==c("UK Independence Party (UK I P)","UK Independence Party (UKIP)"))
+logic.ukip[is.na(logic.ukip)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.ukip]$created_at,search.result[logic.ukip])
+xts.search.aggregate.ukip<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.ukip)<-party
+
+party<-"Conservative Party"
+logic.conservative<-as.logical(tweet.data.df$party==party)
+logic.conservative[is.na(logic.conservative)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.conservative]$created_at,search.result[logic.conservative])
+xts.search.aggregate.conservative<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.conservative)<-party
+
+party<-"Liberal Democrats"
+logic.liberals<-as.logical(tweet.data.df$party==party)
+logic.liberals[is.na(logic.liberals)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.liberals]$created_at,search.result[logic.liberals])
+xts.search.aggregate.liberals<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.liberals)<-party
+
+party<-"Green Party"
+logic.green<-as.logical(tweet.data.df$party==party)
+logic.green[is.na(logic.green)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.green]$created_at,search.result[logic.green])
+xts.search.aggregate.green<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.green)<-party
+
+party<-"Scottish National Party (SNP)"
+logic.snp<-as.logical(tweet.data.df$party==party)
+logic.snp[is.na(logic.snp)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.snp]$created_at,search.result[logic.snp])
+xts.search.aggregate.snp<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.snp)<-party
+
+sent.zoo<-zoo::as.zoo(cbind(xts.search.aggregate.labour,
+                            xts.search.aggregate.conservative,
+                            xts.search.aggregate.liberals,
+                            xts.search.aggregate.ukip,
+                            xts.search.aggregate.green,
+                            xts.search.aggregate.snp
+                            ))
+
+if(normalise){ylabel<-"Normalised Count"}else{ylabel<-"Absolute Count"}
+
+p<-ggplot2::autoplot(na.approx(sent.zoo),facet=NULL)
+p<-p+geom_vline(xintercept = as.numeric(as.POSIXct("2015-03-30")),linetype=4)
+p<-p+xlab("Year")+ylab(ylabel)+theme_bw()+ggtitle(paste("Search: ",terms,sep=""))
+p
+
+rm(xts.search.aggregate.labour,logic.labour,
+   xts.search.aggregate.conservative,logic.conservative,
+   xts.search.aggregate.green,logic.green,
+   xts.search.aggregate.liberals,logic.liberals,
+   xts.search.aggregate.ukip,logic.ukip,
+   xts.search.aggregate.snp,logic.snp,
+   search.result,xts.search,terms,normalise,p,party,sent.zoo)
+invisible(gc(verbose = F))
+```
+
+Two days stand out. The first is April 3rd, the date of the TV leaders debate with all 7 leading parties. Only SNP candidates fail to mention this key issue in significant volume on this day, and conservative candidates mention it the most, followed by the lib dems and the greens. If we look at the normalised counts, however, a different picture emerges. Remember that these scores are divided by the number of tweets by that party on that day, for which there were thousands on the day of the debate (see above).
+
+```{r echo=FALSE,warning=FALSE,message=FALSE}
+terms<-c("immigration")
+normalise<-T
+timeframe<-"daily"
+search.result<-as.matrix(t(tdm[terms,]))
+
+party<-"Labour Party"
+logic.labour<-as.logical(tweet.data.df$party==party)
+logic.labour[is.na(logic.labour)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.labour]$created_at,search.result[logic.labour])
+xts.search.aggregate.labour<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.labour)<-party
+
+party<-"UK Independence Party (UKIP)"
+logic.ukip<-as.logical(tweet.data.df$party==c("UK Independence Party (UK I P)","UK Independence Party (UKIP)"))
+logic.ukip[is.na(logic.ukip)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.ukip]$created_at,search.result[logic.ukip])
+xts.search.aggregate.ukip<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.ukip)<-party
+
+party<-"Conservative Party"
+logic.conservative<-as.logical(tweet.data.df$party==party)
+logic.conservative[is.na(logic.conservative)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.conservative]$created_at,search.result[logic.conservative])
+xts.search.aggregate.conservative<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.conservative)<-party
+
+party<-"Liberal Democrats"
+logic.liberals<-as.logical(tweet.data.df$party==party)
+logic.liberals[is.na(logic.liberals)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.liberals]$created_at,search.result[logic.liberals])
+xts.search.aggregate.liberals<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.liberals)<-party
+
+party<-"Green Party"
+logic.green<-as.logical(tweet.data.df$party==party)
+logic.green[is.na(logic.green)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.green]$created_at,search.result[logic.green])
+xts.search.aggregate.green<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.green)<-party
+
+party<-"Scottish National Party (SNP)"
+logic.snp<-as.logical(tweet.data.df$party==party)
+logic.snp[is.na(logic.snp)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.snp]$created_at,search.result[logic.snp])
+xts.search.aggregate.snp<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.snp)<-party
+
+sent.zoo<-zoo::as.zoo(cbind(xts.search.aggregate.labour,
+                            xts.search.aggregate.conservative,
+                            xts.search.aggregate.liberals,
+                            xts.search.aggregate.ukip,
+                            xts.search.aggregate.green,
+                            xts.search.aggregate.snp
+                            ))
+
+if(normalise){ylabel<-"Normalised Count"}else{ylabel<-"Absolute Count"}
+
+p<-ggplot2::autoplot(na.approx(sent.zoo),facet=NULL)
+p<-p+geom_vline(xintercept = as.numeric(as.POSIXct("2015-03-30")),linetype=4)
+p<-p+xlab("Year")+ylab(ylabel)+theme_bw()+ggtitle(paste("Search: ",terms,sep=""))
+p
+
+rm(xts.search.aggregate.labour,logic.labour,
+   xts.search.aggregate.conservative,logic.conservative,
+   xts.search.aggregate.green,logic.green,
+   xts.search.aggregate.liberals,logic.liberals,
+   xts.search.aggregate.ukip,logic.ukip,
+   xts.search.aggregate.snp,logic.snp,
+   search.result,xts.search,terms,normalise,p,party,sent.zoo)
+invisible(gc(verbose = F))
+```
+
+We now see that, as expected, UKIP is speaking about this subject more relative to other subjects, compared to other major parties. 
+
+Now for a big one - the *nhs*. The plot below is quite noisy, due to the huge amount of tweets referring to the issue across all parties. Again, conservative candidates mention this a lot on the third of April, however toward the end of April the labour party is weaponising the issue more robustly via twitter.
+
+```{r echo=FALSE,warning=FALSE,message=FALSE}
+terms<-c("nhs")
+normalise<-F
+timeframe<-"daily"
+search.result<-as.matrix(t(tdm[terms,]))
+
+party<-"Labour Party"
+logic.labour<-as.logical(tweet.data.df$party==party)
+logic.labour[is.na(logic.labour)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.labour]$created_at,search.result[logic.labour])
+xts.search.aggregate.labour<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.labour)<-party
+
+party<-"UK Independence Party (UKIP)"
+logic.ukip<-as.logical(tweet.data.df$party==c("UK Independence Party (UK I P)","UK Independence Party (UKIP)"))
+logic.ukip[is.na(logic.ukip)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.ukip]$created_at,search.result[logic.ukip])
+xts.search.aggregate.ukip<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.ukip)<-party
+
+party<-"Conservative Party"
+logic.conservative<-as.logical(tweet.data.df$party==party)
+logic.conservative[is.na(logic.conservative)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.conservative]$created_at,search.result[logic.conservative])
+xts.search.aggregate.conservative<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.conservative)<-party
+
+party<-"Liberal Democrats"
+logic.liberals<-as.logical(tweet.data.df$party==party)
+logic.liberals[is.na(logic.liberals)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.liberals]$created_at,search.result[logic.liberals])
+xts.search.aggregate.liberals<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.liberals)<-party
+
+party<-"Green Party"
+logic.green<-as.logical(tweet.data.df$party==party)
+logic.green[is.na(logic.green)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.green]$created_at,search.result[logic.green])
+xts.search.aggregate.green<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.green)<-party
+
+party<-"Scottish National Party (SNP)"
+logic.snp<-as.logical(tweet.data.df$party==party)
+logic.snp[is.na(logic.snp)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.snp]$created_at,search.result[logic.snp])
+xts.search.aggregate.snp<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.snp)<-party
+
+sent.zoo<-zoo::as.zoo(cbind(xts.search.aggregate.labour,
+                            xts.search.aggregate.conservative,
+                            xts.search.aggregate.liberals,
+                            xts.search.aggregate.ukip,
+                            xts.search.aggregate.green,
+                            xts.search.aggregate.snp
+                            ))
+
+if(normalise){ylabel<-"Normalised Count"}else{ylabel<-"Absolute Count"}
+
+p<-ggplot2::autoplot(na.approx(sent.zoo),facet=NULL)
+p<-p+geom_vline(xintercept = as.numeric(as.POSIXct("2015-03-30")),linetype=4)
+p<-p+xlab("Year")+ylab(ylabel)+theme_bw()+ggtitle(paste("Search: ",terms,sep=""))
+p
+
+rm(xts.search.aggregate.labour,logic.labour,
+   xts.search.aggregate.conservative,logic.conservative,
+   xts.search.aggregate.green,logic.green,
+   xts.search.aggregate.liberals,logic.liberals,
+   xts.search.aggregate.ukip,logic.ukip,
+   xts.search.aggregate.snp,logic.snp,
+   search.result,xts.search,terms,normalise,p,party,sent.zoo)
+invisible(gc(verbose = F))
+```
+
+```{r echo=FALSE,warning=FALSE,message=FALSE}
+terms<-c("nhs")
+normalise<-T
+timeframe<-"daily"
+search.result<-as.matrix(t(tdm[terms,]))
+
+party<-"Labour Party"
+logic.labour<-as.logical(tweet.data.df$party==party)
+logic.labour[is.na(logic.labour)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.labour]$created_at,search.result[logic.labour])
+xts.search.aggregate.labour<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.labour)<-party
+
+party<-"UK Independence Party (UKIP)"
+logic.ukip<-as.logical(tweet.data.df$party==c("UK Independence Party (UK I P)","UK Independence Party (UKIP)"))
+logic.ukip[is.na(logic.ukip)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.ukip]$created_at,search.result[logic.ukip])
+xts.search.aggregate.ukip<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.ukip)<-party
+
+party<-"Conservative Party"
+logic.conservative<-as.logical(tweet.data.df$party==party)
+logic.conservative[is.na(logic.conservative)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.conservative]$created_at,search.result[logic.conservative])
+xts.search.aggregate.conservative<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.conservative)<-party
+
+party<-"Liberal Democrats"
+logic.liberals<-as.logical(tweet.data.df$party==party)
+logic.liberals[is.na(logic.liberals)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.liberals]$created_at,search.result[logic.liberals])
+xts.search.aggregate.liberals<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.liberals)<-party
+
+party<-"Green Party"
+logic.green<-as.logical(tweet.data.df$party==party)
+logic.green[is.na(logic.green)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.green]$created_at,search.result[logic.green])
+xts.search.aggregate.green<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.green)<-party
+
+party<-"Scottish National Party (SNP)"
+logic.snp<-as.logical(tweet.data.df$party==party)
+logic.snp[is.na(logic.snp)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[logic.snp]$created_at,search.result[logic.snp])
+xts.search.aggregate.snp<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.snp)<-party
+
+sent.zoo<-zoo::as.zoo(cbind(xts.search.aggregate.labour,
+                            xts.search.aggregate.conservative,
+                            xts.search.aggregate.liberals,
+                            xts.search.aggregate.ukip,
+                            xts.search.aggregate.green,
+                            xts.search.aggregate.snp
+                            ))
+
+if(normalise){ylabel<-"Normalised Count"}else{ylabel<-"Absolute Count"}
+
+p<-ggplot2::autoplot(na.approx(sent.zoo),facet=NULL)
+p<-p+geom_vline(xintercept = as.numeric(as.POSIXct("2015-03-30")),linetype=4)
+p<-p+xlab("Year")+ylab(ylabel)+theme_bw()+ggtitle(paste("Search: ",terms,sep=""))
+p
+
+rm(xts.search.aggregate.labour,logic.labour,
+   xts.search.aggregate.conservative,logic.conservative,
+   xts.search.aggregate.green,logic.green,
+   xts.search.aggregate.liberals,logic.liberals,
+   xts.search.aggregate.ukip,logic.ukip,
+   xts.search.aggregate.snp,logic.snp,
+   search.result,xts.search,terms,normalise,p,party,sent.zoo)
+invisible(gc(verbose = F))
+```
+
+The high counts in earlier times seen in the normalised plot are due to the small number of tweets during this period, amplifying any observed pattern disproportionately.
+
+These are just a few examples of searches that can be done on this matched data set. I would be happy to hear your suggestions for alternative terms to search for, or other meta data to cut by.
+
+Christopher Lovell
+6/5/2015

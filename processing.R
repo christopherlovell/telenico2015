@@ -21,7 +21,7 @@ coll <- "mydb.tweets"
 
 buf <- mongo.bson.buffer.create()  # create query string
 mongo.bson.buffer.start.object(buf, "created_at")
-mongo.bson.buffer.append.time(buf, "$gt", strptime("2015-03-01","%Y-%m-%d"))
+mongo.bson.buffer.append.time(buf, "$gt", strptime("2015-03-20","%Y-%m-%d"))
 mongo.bson.buffer.finish.object(buf)
 query <- mongo.bson.from.buffer(buf)  # create query object (bson)
 # execute query, return cursor
@@ -73,5 +73,5 @@ tdm<-tm::TermDocumentMatrix(corp.clean)
 
 tdm.2<-Narrative::tdmGenerator(seq(1,2,by=1),corp.clean)
 
-#save.image(file=paste(wd,"matched_materials_small.RData",sep=""))
-load(file = "matched_materials.RData")
+#save.image(file=paste(wd,"matched_materials.RData",sep=""))
+#load(file = "matched_materials.RData")

@@ -19,7 +19,7 @@ library(ggplot2)
 wd<-"C:/Users/Chris/Documents/Data Science Files/telenico2015/"
 setwd(wd)
 
-load(file = "matched_materials_small.RData")
+load(file = "matched_materials.RData")
 ```
 
 How have the election candidates handled their twitter campaigns during the campaign period? To answer this question I have downloaded all tweets from each political candidate with a twitter account. Using this data we can look for patterns in occurences of different terms used by candidates from across the political spectrum, and their differing reactions to key events.
@@ -567,7 +567,35 @@ invisible(gc(verbose = F))
 
 The high counts in earlier times seen in the normalised plot are due to the small number of tweets during this period, amplifying any observed pattern disproportionately.
 
-These are just a few examples of searches that can be done on this matched data set. I would be happy to hear your suggestions for alternative terms to search for, or other meta data to cut by.
+```{r}
+# breakdown by age
+terms<-c("immigration")
+normalise<-T
+timeframe<-"daily"
+search.result<-as.matrix(t(tdm[terms,]))
 
-Christopher Lovell
-6/5/2015
+age.logical<-as.logical(tweet.data.df$gender=="male")
+age.logical[is.na(age.logical)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[age.logical]$created_at,search.result[age.logical])
+xts.search.aggregate.male<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.male)<-"male"
+
+age.logical<-as.logical(tweet.data.df$gender=="female")
+age.logical[is.na(age.logical)]<-F
+xts.search<-Narrative::xtsGenerate(tweets.dt[age.logical]$created_at,search.result[age.logical])
+xts.search.aggregate.female<-Narrative::xtsAggregate(xts.search,time_aggregate=timeframe,normalisation = normalise)
+names(xts.search.aggregate.female)<-"female"
+
+sent.zoo<-zoo::as.zoo(cbind(xts.search.aggregate.male,xts.search.aggregate.female))
+
+if(normalise){ylabel<-"Normalised Count"}else{ylabel<-"Absolute Count"}
+
+p<-ggplot2::autoplot(na.approx(sent.zoo),facet=NULL)
+p<-p+geom_vline(xintercept = as.numeric(as.POSIXct("2015-03-30")),linetype=4)
+p<-p+xlab("Year")+ylab(ylabel)+theme_bw()+ggtitle(paste("Search: ",terms,sep=""))
+p
+
+rm(xts.search.aggregate.female,xts.search.aggregate.male,
+   search.result,xts.search,terms,normalise,p,sent.zoo)
+invisible(gc(verbose = F))
+```

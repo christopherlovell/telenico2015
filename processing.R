@@ -73,5 +73,5 @@ tdm<-tm::TermDocumentMatrix(corp.clean)
 
 tdm.2<-Narrative::tdmGenerator(seq(1,2,by=1),corp.clean)
 
-#save.image(file=paste(wd,"matched_materials.RData",sep=""))
+save.image(file=paste(wd,"matched_materials.RData",sep=""))
 #load(file = "matched_materials.RData")

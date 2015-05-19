@@ -108,7 +108,7 @@ def tweepy_error_handler(error,user,collection):
 
 
 downloaded_users = []
-while True:
+#while True:
     # refresh mongo connection details after each run through to prevent time out
     client = MongoClient()
     db = client.mydb
@@ -134,11 +134,13 @@ while True:
                 try:
                     status = api.user_timeline(screen_name=last_tweet[0]['user']['screen_name'],since_id=last_tweet[0]['id'])#retry_count=10,retry_delay=100,)
                     if(status):
+                        print "new"
                         break
                     else:
                         oldest_tweet = tweets.find({"user.screen_name": user['twitter_username'] }).sort([['_id',pymongo.DESCENDING]]).limit(1)
                         status = api.user_timeline(screen_name=oldest_tweet[0]['user']['screen_name'],max_id=oldest_tweet[0]['id'],count=200)#retry_count=10,retry_delay=100,)
                         if(status):
+                            print "old"
                             break
                         else:
                             print("No tweets to collect")+str(datetime.datetime.now().time())
@@ -165,6 +167,7 @@ while True:
                         break
                     
         if(status):
+            print "storing tweets!"
             store_tweets(status,tweets)
-        downloaded_users.append(user["twitter_username"])    
+        downloaded_users.append(user["twitter_username"])
     continue

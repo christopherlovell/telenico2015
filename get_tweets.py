@@ -108,7 +108,7 @@ def tweepy_error_handler(error,user,collection):
 
 
 downloaded_users = []
-#while True:
+while True:
     # refresh mongo connection details after each run through to prevent time out
     client = MongoClient()
     db = client.mydb
@@ -129,26 +129,27 @@ downloaded_users = []
         last_tweet = tweets.find({"user.screen_name": user['twitter_username'] }).sort([['_id',pymongo.ASCENDING]]).limit(1)
         # if there are tweets for this user in the collection, get the latest  since the last tweet   
         if(last_tweet.count()>0):
-            print "update tweets"+ " " + str(datetime.datetime.now().time())
-            while True: 
-                try:
-                    status = api.user_timeline(screen_name=last_tweet[0]['user']['screen_name'],since_id=last_tweet[0]['id'])#retry_count=10,retry_delay=100,)
-                    if(status):
-                        print "new"
-                        break
-                    else:
-                        oldest_tweet = tweets.find({"user.screen_name": user['twitter_username'] }).sort([['_id',pymongo.DESCENDING]]).limit(1)
-                        status = api.user_timeline(screen_name=oldest_tweet[0]['user']['screen_name'],max_id=oldest_tweet[0]['id'],count=200)#retry_count=10,retry_delay=100,)
+            if(last_tweet[0]['created_at']<datetime.datetime(2015, 5, 9, 1, 1, 1)):
+                print "update tweets"+ " " + str(datetime.datetime.now().time())
+                while True:
+                    try:
+                        status = api.user_timeline(screen_name=last_tweet[0]['user']['screen_name'],since_id=last_tweet[0]['id'])#retry_count=10,retry_delay=100,)
                         if(status):
-                            print "old"
+                            print "new"
                             break
-                        else:
-                            print("No tweets to collect")+str(datetime.datetime.now().time())
-                            users.update({"screen_name": user["twitter_username"]},{"$set": {"access_status": "No tweets to collect" }})
+    #                    else:
+    #                        oldest_tweet = tweets.find({"user.screen_name": user['twitter_username'] }).sort([['_id',pymongo.DESCENDING]]).limit(1)
+    #                        status = api.user_timeline(screen_name=oldest_tweet[0]['user']['screen_name'],max_id=oldest_tweet[0]['id'],count=200)#retry_count=10,retry_delay=100,)
+    #                        if(status):
+    #                            print "old"
+    #                            break
+    #                        else:
+    #                            print("No tweets to collect")+str(datetime.datetime.now().time())
+    #                            users.update({"screen_name": user["twitter_username"]},{"$set": {"access_status": "No tweets to collect" }})
+    #                            break
+                    except tweepy.TweepError, e:
+                        if(tweepy_error_handler(e,user,users)):
                             break
-                except tweepy.TweepError, e:
-                    if(tweepy_error_handler(e,user,users)):
-                        break
         
         # else get 100 of the last tweets
         else:

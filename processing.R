@@ -9,9 +9,6 @@ library(rjson)
 library(data.table)
 library(dplyr)
 
-library(zoo)
-library(ggplot2)
-
 # read candidates data
 candidates<-read.csv(file = "candidates.csv",sep = ",")
 
@@ -28,7 +25,16 @@ query <- mongo.bson.from.buffer(buf)  # create query object (bson)
 cursor <- mongo.find(mongo, coll, query, fields = '{"text":1,"favorite_count":1,"retweet_count":1,"created_at":1,"user.verified":1,"user.followers_count":1,"user.listed_count":1,"user.statuses_count":1,"user.description":1,"user.friends_count":1,"user.location":1,"user.name":1,"user.favourites_count":1,"user.screen_name":1,"user.protected":1}')  
 
 tweets.list<-mongo.cursor.to.list(cursor)  # convert to list
-tweets.dt<-data.table::rbindlist(lapply(lapply(tweets.list,unlist),as.list))  # unlist and turn in to data frame
+tweets.dt<-data.table::rbindlist(lapply(lapply(tweets.list,unlist),as.list))  # unlist and turn in to data table
+
+user.screen_name <- tweets.dt[447064:nrow(tweets.dt),user.screen_name]
+user.name <- tweets.dt[447064:nrow(tweets.dt),user.name]
+
+# user.name and user.screen_name swapped around on new extract
+tweets.dt[447064:nrow(tweets.dt),"user.screen_name"]<-user.name
+tweets.dt[447064:nrow(tweets.dt),"user.name"]<-user.screen_name
+
+rm(user.name,user.screen_name)
 
 # convert data types
 tweets.dt[,"created_at":=as.data.frame(as.POSIXct(as.numeric(tweets.dt[["created_at"]]),origin="1970-01-01",tz="GMT"))]
@@ -71,7 +77,7 @@ tdm<-tm::TermDocumentMatrix(corp.clean)
 
 #wc<-Narrative::wordCount(t(tdm))
 
-tdm.2<-Narrative::tdmGenerator(seq(1,2,by=1),corp.clean)
+#tdm.2<-Narrative::tdmGenerator(seq(1,2,by=1),corp.clean)
 
 save.image(file=paste(wd,"matched_materials.RData",sep=""))
 #load(file = "matched_materials.RData")

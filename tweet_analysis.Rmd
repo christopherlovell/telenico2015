@@ -599,3 +599,14 @@ rm(xts.search.aggregate.female,xts.search.aggregate.male,
    search.result,xts.search,terms,normalise,p,sent.zoo)
 invisible(gc(verbose = F))
 ```
+
+Testing
+```{r}
+
+nrow(tweets.dt[tweets.dt$created_at > as.POSIXct("2015-04-20"),user.screen_name])
+
+```
+
+
+
+
